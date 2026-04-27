@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Zonnewijzer Pro</title>
+    
+    <link rel="icon" type="image/png" href="icon.png">
+    <link rel="shortcut icon" href="icon.png">
+    <link rel="apple-touch-icon" href="icon.png">
+    <link rel="apple-touch-startup-image" href="icon.png">
+
+    <meta name="apple-mobile-web-app-title" content="Zonnewijzer">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#000000">
+
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <style>
+        :root { --gold: #ff9d2f; --bg: #000; --panel: #111; --dim: #222; --green: #0f0; }
+        
+        * { box-sizing: border-box; }
+
+        body { 
+            background: var(--bg); 
+            color: #fff; 
+            font-family: 'Courier New', monospace; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            margin: 0;
+            overflow: hidden;
+            position: fixed; /* Voorkomt scrollen op Flip 6 */
+            width: 100%;
+        }
+
+        #display { 
+            border: 2px solid var(--gold); 
+            padding: 12px; 
+            width: 94vw; 
+            max-width: 380px; /* Geoptimaliseerd voor smalle Flip 6 */
+            background: var(--panel); 
+            box-shadow: 0 0 40px rgba(255,157,47,0.15); 
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .header { 
+            border-bottom: 2px solid var(--gold); 
+            padding-bottom: 8px; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: flex-start; 
+        }
+        
+        .app-name { color: var(--gold); font-size: 0.85rem; font-weight: bold; letter-spacing: 1px; }
+        .date-val { font-size: 0.75rem; color: #fff; text-transform: uppercase; margin-top: 3px; }
+        .status { font-size: 0.5rem; color: var(--green); letter-spacing: 1px; animation: blink 2s infinite; margin-top: 4px; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+
+        .clock-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .clock-section { padding: 8px; background: #050505; border-radius: 4px; border-left: 3px solid var(--dim); }
+        .label { font-size: 0.55rem; color: #777; text-transform: uppercase; margin-bottom: 2px; display: block; }
+        .time-val { font-size: 1.1rem; font-weight: bold; line-height: 1; font-variant-numeric: tabular-nums; }
+        
+        .active-zone { border-left-color: var(--gold); background: #0c0c0c; }
+        
+        .solar-main { 
+            grid-column: span 2; 
+            background: #000; 
+            border: 1px solid #222; 
+            padding: 15px 12px; 
+            position: relative;
+            text-align: left;
+        }
+        
+        .utc-side { position: absolute; right: 12px; top: 12px; text-align: right; }
+        .offset-val { font-size: 0.6rem; color: var(--gold); margin-top: 4px; font-weight: bold; }
+
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .box { background: #0a0a0a; padding: 8px; border-top: 1px solid var(--gold); }
+        .box .time { font-size: 1.05rem; font-weight: bold; margin-top: 3px; font-variant-numeric: tabular-nums; }
+        .duration { font-size: 0.55rem; color: var(--gold); margin-top: 2px; opacity: 0.8; }
+
+        .instrument-info { text-align: right; color: #666; font-size: 0.5rem; line-height: 1.3; }
+        .footer { margin-top: 8px; font-size: 0.5rem; color: #333; text-align: center; border-top: 1px solid #222; padding-top: 6px; }
+    </style>
+</head>
+<body>
+
+<div id="display">
+    <div class="header">
+        <div>
+            <div class="app-name">ANTWERPSE ZONNEWIJZER</div>
+            <div id="date-target" class="date-val">CALIBREREN...</div>
+            <div class="status">● SENSOR-LINK ACTIEF</div>
+        </div>
+        <div class="instrument-info">
+            <div id="coords-display">GPS FIX...</div>
+            <div id="zone-display">UTC --</div>
+        </div>
+    </div>
+
+    <div class="clock-grid">
+        <div class="clock-section">
+            <span class="label">⛪ Systeem</span>
+            <div id="time-home" class="time-val" style="color: #666;">--:--:--</div>
+        </div>
+        <div class="clock-section active-zone">
+            <span class="label">📍 Lokaal</span>
+            <div id="time-target" class="time-val">--:--:--</div>
+        </div>
+
+        <div class="solar-main">
+            <div class="utc-side">
+                <span class="label">UTC (Bron)</span>
+                <div id="time-utc" class="time-val" style="font-size: 1rem; color: #888;">--:--:--</div>
+                <div id="solar-offset" class="offset-val">DIFF: -- MIN</div>
+            </div>
+            <div>
+                <span class="label">☀️ Ware Zonnetijd</span>
+                <div id="time-solar" class="time-val" style="font-size: 2rem; color: var(--gold);">--:--:--</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid">
+        <div class="box">
+            <span class="label">Opkomst</span>
+            <div id="out-rise" class="time">--:--</div>
+            <div class="duration">Astron.</div>
+        </div>
+        <div class="box">
+            <span class="label">Gouden Uur (O)</span>
+            <div id="out-gold-morning" class="time">--:--</div>
+            <div id="dur-gold-morning" class="duration">-</div>
+        </div>
+        <div class="box">
+            <span class="label">Gouden Uur (A)</span>
+            <div id="out-gold-evening" class="time">--:--</div>
+            <div id="dur-gold-evening" class="duration">-</div>
+        </div>
+        <div class="box">
+            <span class="label">Ondergang</span>
+            <div id="out-set" class="time">--:--</div>
+            <div class="duration">Astron.</div>
+        </div>
+    </div>
+
+    <div class="footer">
+        COORDINATED SOLAR REFERENCE | v2.2 | FLIP 6 COMPATIBLE
+    </div>
+</div>
+
+<script>
+    let currentLat = 51.2213, currentLng = 4.4051;
+
+    function initGPS() {
+        if (navigator.geolocation) {
+            navigator.geolocation.watchPosition((pos) => {
+                currentLat = pos.coords.latitude;
+                currentLng = pos.coords.longitude;
+                
+                document.getElementById('coords-display').innerHTML = 
+                    `${currentLat.toFixed(4)}°N<br>${currentLng.toFixed(4)}°E`;
+                
+                const offsetH = -(new Date().getTimezoneOffset() / 60);
+                document.getElementById('zone-display').innerText = `ZONE: UTC+${offsetH}`;
+            }, null, { enableHighAccuracy: true });
+        }
+    }
+
+    function update() {
+        const now = new Date();
+        const utcTime = new Date(now.getTime() + (now.getTimezoneOffset() * 60000));
+        
+        // Lokale en UTC klokken
+        document.getElementById('time-home').innerText = now.toLocaleTimeString('nl-BE');
+        document.getElementById('time-utc').innerText = utcTime.toLocaleTimeString('nl-BE', {hour12: false});
+        document.getElementById('time-target').innerText = now.toLocaleTimeString('nl-BE');
+        document.getElementById('date-target').innerText = now.toLocaleDateString('nl-BE', { weekday: 'long', day: 'numeric', month: 'long' });
+
+        // Zonnetijd berekening (incl. Equation of Time)
+        const start = new Date(now.getFullYear(), 0, 0);
+        const doy = Math.floor((now - start) / 86400000);
+        const b = (2 * Math.PI / 365) * (doy - 81);
+        const eot = 9.87 * Math.sin(2 * b) - 7.53 * Math.cos(b) - 1.5 * Math.sin(b);
+        
+        const offsetMinutes = (currentLng * 4) + eot;
+        document.getElementById('solar-offset').innerText = `DIFF: ${offsetMinutes > 0 ? '+' : ''}${offsetMinutes.toFixed(1)} MIN`;
+
+        // Bereken zonnetijd tot op de seconde nauwkeurig
+        const solarMins = (utcTime.getHours() * 60) + utcTime.getMinutes() + (utcTime.getSeconds() / 60) + offsetMinutes;
+        
+        let sh = Math.floor(solarMins / 60) % 24; if (sh < 0) sh += 24;
+        let sm = Math.floor(solarMins % 60);
+        let ss = Math.floor((solarMins * 60) % 60);
+        
+        document.getElementById('time-solar').innerText = 
+            `${sh.toString().padStart(2,'0')}:${sm.toString().padStart(2,'0')}:${ss.toString().padStart(2,'0')}`;
+
+        // Zonsopkomst/ondergang berekening
+        const decl = 23.45 * Math.sin((Math.PI / 180) * (360 / 365) * (doy - 81));
+        const latR = currentLat * (Math.PI / 180);
+        const declR = decl * (Math.PI / 180);
+
+        const getHA = (h) => {
+            const cosH = (Math.sin(h * Math.PI / 180) - Math.sin(latR) * Math.sin(declR)) / (Math.cos(latR) * Math.cos(declR));
+            return (cosH <= 1 && cosH >= -1) ? Math.acos(cosH) * (180 / Math.PI) : null;
+        };
+
+        const h0 = getHA(-0.83); 
+        const hG = getHA(6.0);    
+
+        if (h0 !== null && hG !== null) {
+            const sunriseUTC = 720 - 4 * (currentLng + h0) - eot;
+            const sunsetUTC = 720 - 4 * (currentLng - h0) - eot;
+            const goldDur = Math.abs(Math.round(sunriseUTC - (720 - 4 * (currentLng + hG) - eot)));
+
+            const currentTZMinutes = -(now.getTimezoneOffset());
+            const fmt = (min) => {
+                let m = min + currentTZMinutes;
+                let hh = Math.floor(m / 60) % 24; if (hh < 0) hh += 24;
+                let mm = Math.floor(m % 60);
+                return hh.toString().padStart(2,'0') + ":" + mm.toString().padStart(2,'0');
+            };
+
+            document.getElementById('out-rise').innerText = fmt(sunriseUTC);
+            document.getElementById('out-gold-morning').innerText = fmt(sunriseUTC + goldDur);
+            document.getElementById('dur-gold-morning').innerText = `Duur: ${goldDur} min`;
+            document.getElementById('out-gold-evening').innerText = fmt(sunsetUTC - goldDur);
+            document.getElementById('dur-gold-evening').innerText = `Duur: ${goldDur} min`;
+            document.getElementById('out-set').innerText = fmt(sunsetUTC);
+        }
+    }
+
+    initGPS();
+    setInterval(update, 1000);
+    update();
+</script>
+</body>
+</html>
